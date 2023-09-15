@@ -1,41 +1,45 @@
-//*************************************************************
+//********************MODULE SETTINGS****************************
 //Check your sensor address using i2c_scanner.ino or datasheet
 //In this example sensor address:
 // aht20 0x38
 // bmp280 0x77
 
 //uncomment this line if you use RGB led strip
-// #define ADRESSING_RGB 
+ //#define ADRESSING_RGB 
 
 //uncomment this line if you use DHT11(22) sensor
 // #define DHT11_SENSOR
 
-//uncomment this line if you use AHT20 sensor
+//uncomment this line if you use AHT20 sensor with I2C bus
  #define AHT20_SENSOR
 
-//uncomment this line if you use BMP280 sensor
+//uncomment this line if you use BMP280 sensor with I2C bus
  #define BMP280_SENSOR
+
+//uncomment this line if you want to see debug messages in serial monitor
+ //#define SERIAL_DEBUG 
 //*************************************************************
-#define vers "SmokeClock 1.3"
 
 #ifdef ADRESSING_RGB
-#include <FastLED.h>
-CRGB leds[NUM_LEDS];
+  #define NUM_LEDS 16 // количество управляемых светодиодов
+  #define LED_PIN 4   // пин подключения ленты
+  #include <FastLED.h>
+  CRGB leds[NUM_LEDS];
 #endif
 
 #ifdef DHT11_SENSOR
-#include <SimpleDHT.h>
-SimpleDHT11 dht11 //if you use DHT22 sensor, change to SimpleDHT22 dht11;
+  #include <SimpleDHT.h>
+  SimpleDHT11 dht11 //if you use DHT22 sensor, change to SimpleDHT22 dht11;
 #endif
 
 #ifdef AHT20_SENSOR
-#include <AHT20.h>
-AHT20 aht20;
+  #include <AHT20.h>
+  AHT20 aht20;
 #endif
 
 #ifdef BMP280_SENSOR
-#include <GyverBME280.h>
-GyverBME280 bme;
+  #include <GyverBME280.h>
+  GyverBME280 bme;
 #endif
 
 #include <Adafruit_PCD8544.h>
@@ -45,12 +49,21 @@ GyverBME280 bme;
 #include <EEPROMex.h>
 #include "tones.h"
 
+/**************CONSTANTS*****************/
+#define BTN_PROTECT 100 // защита дребезга кнопки
+#define LCD_RENEW 250   // обновление экрана
+#define HEATING 60000   // прогрев датчика дыма 60сек
+
+#ifdef SERIAL_DEBUG
+  #define SERIAL_SPEED 9600
+  #define vers "SmokeClock 1.3"
+ #endif
+
 /**************PIN SETTINGS*****************/
 // пины кнопок управления
 #define BTN_UP 10  // кнопка увеличения
 #define BTN_DOWN 9 // кнопка уменьшения
 #define BTN_SET 8  // кнопка установки
-
 #define BTN_RESET 0 // кнопка сброса настроек
 
 // пины подключения модуля часов
@@ -62,35 +75,25 @@ GyverBME280 bme;
 #define MQ2_A0 A3       // A5 в А5
 #define MQ2_DEFAULT 300 // начальный уровень сигнализации (при первой прошивке)
 
-// #define DHT22_PIN 2 // пин подключения датчика влажности DHT11
-
-#define NUM_LEDS 16 // количество управляемых светодиодов
-#define LED_PIN 4   // пин подключения ленты
+#ifdef DHT11_SENSOR
+  #define DHT22_PIN 2 // пин подключения датчика влажности DHT11
+#endif
 
 #define FOTORES A0 // A1 пин подключения фоторезистора
 #define LCD_LED 3  // ШИМ пин подключения подсветки LCD
 
 #define BUZZER_PIN 12 // пин подключения спикера
 
-#define BTN_PROTECT 100 // защита дребезга кнопки
-#define LCD_RENEW 250   // обновление экрана
-#define HEATING 60000   // прогрев датчика дыма 60сек
-/*******************************************************/
 
+/**************VARIABLES*****************/
 Adafruit_PCD8544 display = Adafruit_PCD8544(4, A1, A2, 13, 11);
 DS1302 rtc(kCePin, kIoPin, kSclkPin);
 Time t = rtc.time();
 
-//****************************
-int bright, btn_up_val, btn_down_val, btn_set_val, now_year, mq2, mq2_alarm;
-
+int bright, btn_up_val, btn_down_val, btn_set_val, now_year, mq2, mq2_alarm; 
 int btn_reset_val;
 long btn_reset_millis;
-
-float pressure;
-
-float now_temp, now_hum;
-
+float pressure, now_temp, now_hum;
 byte now_disp, now_month, now_date, now_hour, now_min, now_sec, now_week_day, alarm_hour, alarm_min;
 long now_millis, lcd_millis, time_millis, btn_up_millis, btn_down_millis, btn_set_millis, disp_millis, horn_millis, mq2_start_alarm;
 boolean dot, blnk, alarm, horn, horn_smoke, note, time_changed;
@@ -98,9 +101,10 @@ uint8_t gHue = 0;
 byte set_time;
 char sep;
 
-uint16_t disp[4] = {25000, 3000, 3000, 3000}; // тайминг работы экранов основной 25сек, остальные по 3сек
+uint16_t disp[5] = {25000, 3000, 3000, 3000, 3000}; // тайминг работы экранов основной 25сек, остальные по 3сек
 //****************************
 uint16_t melody[] = {NOTE_D7, NOTE_D8, NOTE_D7, NOTE_D8, NOTE_D7, NOTE_D8, NOTE_D7, NOTE_D8}; // мелодия
+
 uint8_t noteDurations[] = {4, 4, 4, 4, 4, 4, 4, 4};
 //****************************
 char *week_day[7] = {
@@ -114,11 +118,14 @@ char *week_day[7] = {
 };
 //****************************
 void writeBigString(char *str, uint8_t x, uint8_t y, uint8_t textSize = 2);
+
 void setup()
 {
 
-  // Serial.begin(9600);
-  // Serial.println(vers);
+#ifdef SERIAL_DEBUG
+   Serial.begin(SERIAL_SPEED);
+   Serial.println(vers);
+#endif
 
   // кнопки управления
   pinMode(BTN_UP, INPUT_PULLUP);
@@ -135,24 +142,33 @@ void setup()
   alarm_min = EEPROM.readByte(1);
   alarm = EEPROM.readByte(2);
   mq2_alarm = EEPROM.readInt(3);
+
+#ifdef SERIAL_DEBUG
   Serial.print("Alarm level: ");
   Serial.println(mq2_alarm);
+#endif
+
   if ((mq2_alarm < 0) or (mq2_alarm > 1000))
     mq2_alarm = MQ2_DEFAULT; // установка дефолтного уровня если не задан другой
 
   rtc.writeProtect(false);
   rtc.halt(false);
+
   // первичная установка времени, если требуется из программы
   // Time t(2023, 9, 9, 19, 44, 10, 6); // год-месяц-дата-час-минута-секунда-день.недели
   // rtc.time(t);
 
   // Check if the AHT20 will acknowledge
-  if (aht20.begin() == false)
+  if (!aht20.begin())
   {
-    Serial.println("AHT20 not detected. Please check wiring. Freezing.");
-    // while (1);
+    #ifdef SERIAL_DEBUG
+      Serial.println("AHT20 not detected. Please check wiring. Freezing.");
+    #endif
   }
+  else
+    #ifdef SERIAL_DEBUG
   Serial.println("AHT20 acknowledged.");
+    #endif
 
   bme.setTempOversampling(MODULE_DISABLE);
   bme.setHumOversampling(MODULE_DISABLE); // Отключаем неиспользуемый модуль измерения влажности - экономим энергию
@@ -178,7 +194,7 @@ void setup()
   display.setTextSize(2);
   display.setTextColor(BLACK);
   display.setCursor(0, 0);
-  display.println("GAS 1.2");
+  display.println("GAS 1.3");
   display.setTextSize(1);
   display.setCursor(15, 16);
   display.println("SmokeClock");
@@ -393,7 +409,9 @@ void loop()
     if ((now_hour == alarm_hour) and (now_min == alarm_min) and (now_sec < 2) and (alarm))
     {
       horn = true;
+      #ifdef SERIAL_DEBUG
       Serial.println("WAKE UP!!!");
+      #endif
     } // проверка будильника
     if ((now_hour != alarm_hour) or (now_min != alarm_min))
     {
@@ -403,22 +421,26 @@ void loop()
     {
       horn_smoke = true;
       mq2_start_alarm = now_millis;
+      #ifdef SERIAL_DEBUG
       Serial.println("SMOKE!!!");
+      #endif
     } // проверка датчика дыма
     if ((now_millis - mq2_start_alarm > 10000) and (mq2 <= mq2_alarm))
     {
       horn_smoke = false;
     } // отключение тревоги
 
+    // проверка переполнения millis и сброс раз в 46 суток. максимально возможно значение 4294967295, это около 50 суток.
     if (millis() > 4000000000)
     {
       resetFunc();
-    }; // проверка переполнения millis и сброс раз в 46 суток. максимально возможно значение 4294967295, это около 50 суток.
+    }; 
     time_millis = now_millis;
   }
-
+  
+  // сигналы
   if (set_time == 0)
-  { // сигналы
+  { 
 
     if ((horn) and (now_millis - horn_millis > 250))
     { // будильник часов
@@ -485,15 +507,17 @@ void loop()
     }
   }
 
+  // смена экранов по таймингу
   if ((now_millis - disp_millis > disp[now_disp]) and (set_time == 0))
-  { // смена экранов по таймингу
-    now_disp = (now_disp + 1) % 5;
-    display.clearDisplay(); // lcd.clear();
+  {
+    now_disp = (now_disp + 1) % 6;
+    display.clearDisplay(); 
     disp_millis = now_millis;
   };
 
+  // обновление экрана
   if (now_millis - lcd_millis > LCD_RENEW)
-  { // обновление экрана
+  { 
     print_lcd();
 #ifdef ADRESSING_RGB
     if (!horn)
@@ -521,8 +545,8 @@ void print_lcd(void)
   snprintf(date_str, sizeof(date_str), "%04d-%02d-%02d %s", now_year, now_month, now_date, week_day[now_week_day]);
   snprintf(temp_str, sizeof(temp_str), "%02d", now_temp);
 
-  snprintf(m_clock, sizeof(m_clock), "%d", now_hour);
-  snprintf(l_clock, sizeof(l_clock), "%d", now_min);
+  snprintf(m_clock, sizeof(m_clock), "%02d", now_hour);
+  snprintf(l_clock, sizeof(l_clock), "%02d", now_min);
 
   if (now_millis < HEATING)
   {
@@ -638,11 +662,13 @@ void print_lcd(void)
     display.setCursor(30, 40);
     display.println(set_str);
 
+#ifdef BMP280_SENSOR
     // Print the pressure
     display.setCursor(41, 40);
     display.println((int)(pressure));
     display.setCursor(60, 40);
     display.println("mmHg");
+#endif
     break;
   case 1:
     writeBigString(hum_str, 7, 10, 4);
@@ -666,7 +692,18 @@ void print_lcd(void)
     writeBigString(temp_str, 7, 10, 4);
     writeBigString("C", 60, 10, 3);
     break;
+
+#ifdef BMP280_SENSOR    
+  case 4:
+    display.setTextSize(3);
+    display.setCursor(15, 10);
+    display.println((int)pressure);
+    display.setTextSize(1);
+    display.setCursor(28,35);
+    display.println("mmHg");
+    break;
   }
+#endif
 }
 //****************************
 void writeBigString(char *str, uint8_t x, uint8_t y, uint8_t textSize = 2)
@@ -682,8 +719,8 @@ void time_read()
 { 
 
   mq2 = analogRead(MQ2_A0);
-  // Serial.print("Датчик дыма MQ-2: "); Serial.print(mq2);
-
+  
+#ifdef BMP280_SENSOR
   // Read the pressure
   pressure = bme.readPressure();
 
@@ -697,12 +734,17 @@ void time_read()
     // Try again
     bme.begin(0x77); 
   }
+#endif  
 
 #ifdef DHT11_SENSOR
    if(dht11.read2(DHT22_PIN, &now_temp, &now_hum, NULL) != SimpleDHTErrSuccess)
     now_hum = 0, now_temp = 0;
+    #ifdef SERIAL_DEBUG
+     Serial.print("DHT: ");
+  #endif
 #endif
 
+#ifdef AHT20_SENSOR
   // If the sensor is connected, read the temperature and humidity
   if (aht20.isConnected())
   {
@@ -711,6 +753,10 @@ void time_read()
     {
       now_temp = aht20.getTemperature();
       now_hum = aht20.getHumidity();
+
+    #ifdef SERIAL_DEBUG
+      Serial.print("AHT20: "); 
+    #endif
     }
     else
     {
@@ -723,9 +769,13 @@ void time_read()
     now_temp = 0;
     now_hum = 0;
   }
+#endif
 
-  // Serial.print(", датчик влажности DHT22: "); Serial.print((float)now_temp); Serial.print("C, ");
-  // Serial.print((float)now_hum); Serial.println("%");
+#ifdef SERIAL_DEBUG
+    Serial.print((float)now_temp); Serial.print("C, ");
+    Serial.print((float)now_hum); Serial.println("%");
+    Serial.print("Датчик дыма MQ-2: "); Serial.print(mq2);
+#endif
 
   t = rtc.time();
   now_year = t.yr;
