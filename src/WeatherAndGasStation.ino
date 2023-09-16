@@ -53,6 +53,7 @@
 #define BTN_PROTECT 100 // защита дребезга кнопки
 #define LCD_RENEW 250   // обновление экрана
 #define HEATING 60000   // прогрев датчика дыма 60сек
+#define MQ2_DEFAULT 300 // начальный уровень сигнализации (при первой прошивке)
 
 #ifdef SERIAL_DEBUG
   #define SERIAL_SPEED 9600
@@ -63,30 +64,35 @@
 // пины кнопок управления
 #define BTN_UP 10  // кнопка увеличения
 #define BTN_DOWN 9 // кнопка уменьшения
-#define BTN_SET 8  // кнопка установки
-#define BTN_RESET 0 // кнопка сброса настроек
+#define BTN_SET 11  // кнопка установки
+#define BTN_RESET 12 // кнопка сброса настроек
 
 // пины подключения модуля часов
-#define kCePin 5   // RST
-#define kIoPin 6   // DAT
-#define kSclkPin 7 // CLK
+#define kCePin 0   // RST
+#define kIoPin 1   // DAT
+#define kSclkPin 2 // CLK
 
 // пины подключения датчика дыма
 #define MQ2_A0 A3       // A5 в А5
-#define MQ2_DEFAULT 300 // начальный уровень сигнализации (при первой прошивке)
 
 #ifdef DHT11_SENSOR
   #define DHT22_PIN 2 // пин подключения датчика влажности DHT11
 #endif
 
-#define FOTORES A0 // A1 пин подключения фоторезистора
+#define FOTORES A1 // A1 пин подключения фоторезистора
 #define LCD_LED 3  // ШИМ пин подключения подсветки LCD
 
-#define BUZZER_PIN 12 // пин подключения спикера
+#define BUZZER_PIN A2 // пин подключения спикера
 
-
+//Nokia 5110 display
+#define SCLK_PIN 4
+#define DIN_PIN 5
+#define DC_PIN 6
+#define SCE_PIN 8
+#define RST_PIN 7     
+         
 /**************VARIABLES*****************/
-Adafruit_PCD8544 display = Adafruit_PCD8544(4, A1, A2, 13, 11);
+Adafruit_PCD8544 display = Adafruit_PCD8544(SCLK_PIN, DIN_PIN, DC_PIN, SCE_PIN, RST_PIN);
 DS1302 rtc(kCePin, kIoPin, kSclkPin);
 Time t = rtc.time();
 
