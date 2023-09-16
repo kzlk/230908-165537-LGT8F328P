@@ -21,8 +21,8 @@
 //*************************************************************
 
 #ifdef ADRESSING_RGB
-  #define NUM_LEDS 16 // количество управляемых светодиодов
-  #define LED_PIN 4   // пин подключения ленты
+  #define NUM_LEDS 16 // Number of controlled LEDs
+  #define LED_PIN 4   // LED strip connection pin
   #include <FastLED.h>
   CRGB leds[NUM_LEDS];
 #endif
@@ -50,10 +50,10 @@
 #include "tones.h"
 
 /**************CONSTANTS*****************/
-#define BTN_PROTECT 100 // защита дребезга кнопки
-#define LCD_RENEW 250   // обновление экрана
-#define HEATING 60000   // прогрев датчика дыма 60сек
-#define MQ2_DEFAULT 300 // начальный уровень сигнализации (при первой прошивке)
+#define BTN_PROTECT 100 // Button debounce protection
+#define LCD_RENEW 250   // Screen refresh rate
+#define HEATING 60000   // Smoke sensor warm-up time (60 seconds)
+#define MQ2_DEFAULT 300 // Initial alarm level (during the first firmware)
 
 #ifdef SERIAL_DEBUG
   #define SERIAL_SPEED 9600
@@ -61,28 +61,28 @@
  #endif
 
 /**************PIN SETTINGS*****************/
-// пины кнопок управления
-#define BTN_UP 10  // кнопка увеличения
-#define BTN_DOWN 9 // кнопка уменьшения
-#define BTN_SET 11  // кнопка установки
-#define BTN_RESET 12 // кнопка сброса настроек
+// Control button pins
+#define BTN_UP 10   // Increase button
+#define BTN_DOWN 9  // Decrease button
+#define BTN_SET 11  // Set button
+#define BTN_RESET 12 // Reset button
 
-// пины подключения модуля часов
+// Clock module connection pins
 #define kCePin 0   // RST
 #define kIoPin 1   // DAT
 #define kSclkPin 2 // CLK
 
-// пины подключения датчика дыма
-#define MQ2_A0 A3       // A5 в А5
+// Smoke sensor connection pins
+#define MQ2_ANALOG_PIN A3       // A0 to  А3
 
 #ifdef DHT11_SENSOR
-  #define DHT22_PIN 2 // пин подключения датчика влажности DHT11
+  #define DHT22_PIN 2 // Humidity sensor (DHT11/22) connection pin
 #endif
 
-#define FOTORES A1 // A1 пин подключения фоторезистора
-#define LCD_LED 3  // ШИМ пин подключения подсветки LCD
+#define FOTORES A1  // Photoresistor connection pin
+#define LCD_LED 3  // PWM pin for LCD backlight
 
-#define BUZZER_PIN A2 // пин подключения спикера
+#define BUZZER_PIN A2  // Speaker connection pin
 
 //Nokia 5110 display
 #define SCLK_PIN 4
@@ -107,9 +107,9 @@ uint8_t gHue = 0;
 byte set_time;
 char sep;
 
-uint16_t disp[5] = {25000, 3000, 3000, 3000, 3000}; // тайминг работы экранов основной 25сек, остальные по 3сек
+uint16_t disp[5] = {25000, 3000, 3000, 3000, 3000}; // Main screen timing 25 seconds, others 3 seconds
 //****************************
-uint16_t melody[] = {NOTE_D7, NOTE_D8, NOTE_D7, NOTE_D8, NOTE_D7, NOTE_D8, NOTE_D7, NOTE_D8}; // мелодия
+uint16_t melody[] = {NOTE_D7, NOTE_D8, NOTE_D7, NOTE_D8, NOTE_D7, NOTE_D8, NOTE_D7, NOTE_D8}; // Melody
 
 uint8_t noteDurations[] = {4, 4, 4, 4, 4, 4, 4, 4};
 //****************************
@@ -133,13 +133,13 @@ void setup()
    Serial.println(vers);
 #endif
 
-  // кнопки управления
+   // Control buttons
   pinMode(BTN_UP, INPUT_PULLUP);
   pinMode(BTN_DOWN, INPUT_PULLUP);
   pinMode(BTN_SET, INPUT_PULLUP);
   pinMode(BTN_RESET, INPUT_PULLUP);
   pinMode(FOTORES, INPUT);
-  pinMode(MQ2_A0, INPUT);
+  pinMode(MQ2_ANALOG_PIN, INPUT);
   pinMode(LCD_LED, OUTPUT);
   analogWrite(LCD_LED, 255);
   pinMode(BUZZER_PIN, OUTPUT);
@@ -154,14 +154,15 @@ void setup()
   Serial.println(mq2_alarm);
 #endif
 
+  // Set the default level if not specified otherwise
   if ((mq2_alarm < 0) or (mq2_alarm > 1000))
-    mq2_alarm = MQ2_DEFAULT; // установка дефолтного уровня если не задан другой
+    mq2_alarm = MQ2_DEFAULT;
 
   rtc.writeProtect(false);
   rtc.halt(false);
 
-  // первичная установка времени, если требуется из программы
-  // Time t(2023, 9, 9, 19, 44, 10, 6); // год-месяц-дата-час-минута-секунда-день.недели
+  // Initial time setting if required from the program
+  // Time t(2023, 9, 9, 19, 44, 10, 6); // year-month-date-hour-minute-second-day-of-the-week
   // rtc.time(t);
 
   // Check if the AHT20 will acknowledge
@@ -177,14 +178,14 @@ void setup()
     #endif
 
   bme.setTempOversampling(MODULE_DISABLE);
-  bme.setHumOversampling(MODULE_DISABLE); // Отключаем неиспользуемый модуль измерения влажности - экономим энергию
-  bme.setMode(FORCED_MODE);                      // По возможности используем принудительный режим с редким опросом
-  bme.setStandbyTime(STANDBY_1000MS);     // Если используем обычный режим - увеличиваем время сна между измерениями насколько это возможно в нашем случае
+  bme.setHumOversampling(MODULE_DISABLE); 
+  bme.setMode(FORCED_MODE);                     
+  bme.setStandbyTime(STANDBY_1000MS);     
   bme.begin(0x77);
 
 #ifdef ADRESSING_RGB
   FastLED.addLeds<WS2811, LED_PIN, GRB>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
-  // запуск светодиодов
+    // LED initialization
   FastLED.setBrightness(100);
   for (int i = 0; i < NUM_LEDS; i++)
   {
@@ -207,28 +208,28 @@ void setup()
   display.setCursor(18, 24);
   display.display();
 
-  tone(BUZZER_PIN, NOTE_D7, 100); // разово пищим при старте. проверка зуммера
+  tone(BUZZER_PIN, NOTE_D7, 100); // Beep once at startup for buzzer check
   delay(1000);
   time_read();
   display.clearDisplay();
 }
 //****************************
-void (*resetFunc)(void) = 0; // функция ресета раз в 50 дней. так надо.
+void (*resetFunc)(void) = 0; // reset function once per 50 days
 //****************************
 void loop()
 {
   display.setTextSize(1);
-
   now_millis = millis();
-  // считываем состояние кнопок
   btn_up_val = digitalRead(BTN_UP);
   btn_down_val = digitalRead(BTN_DOWN);
   btn_set_val = digitalRead(BTN_SET);
   btn_reset_val = digitalRead(BTN_RESET);
 
-  // обработка нажатия кнопок с защитой от дребезга
+  /* Button processing */ 
+
+  //Button Up
   if ((btn_up_val == LOW) & (now_millis - btn_up_millis) > BTN_PROTECT)
-  { // обработка кнопки вверх
+  { 
     horn = false;
     switch (set_time)
     {
@@ -297,8 +298,9 @@ void loop()
 
     btn_up_millis = now_millis + 300;
   }
+  //Button Down
   if ((btn_down_val == LOW) & (now_millis - btn_down_millis) > BTN_PROTECT)
-  { // обработка кнопки вниз
+  { 
     horn = false;
     switch (set_time)
     {
@@ -366,8 +368,9 @@ void loop()
     }
     btn_down_millis = now_millis + 300;
   }
+  //Button Reset
   if ((btn_set_val == LOW) & (now_millis - btn_set_millis) > BTN_PROTECT)
-  { // обработка кнопки установки
+  { 
     horn = false;
     if (now_disp != 0)
     {
@@ -375,8 +378,9 @@ void loop()
       display.clearDisplay();
     }
     set_time = (set_time + 1) % 13;
+    //exit from the setting mode and write the time
     if (set_time == 12)
-    { // выход из режима установки и запись времени
+    { 
       set_time_now();
       set_time = 0;
       now_disp = 0;
@@ -384,20 +388,21 @@ void loop()
     }
     btn_set_millis = now_millis + 300;
   }
+  //Reset Button
   if ((btn_reset_val == LOW) & (now_millis - btn_reset_millis) > BTN_PROTECT)
-  { // сброс настроек
+  {
     horn = false;
     horn_smoke = false;
     set_time = 12;
     set_time_now();
     set_time = 0;
     now_disp = 0;
-    // horn_millis = 0;
     disp_millis = now_millis;
     btn_reset_millis = now_millis + 300;
   }
+  //Renew time once per second
   if (now_millis - time_millis > 1000)
-  { // обновление времени раз в секунду
+  {
     dot = !dot;
     if (dot)
     {
@@ -418,11 +423,13 @@ void loop()
       #ifdef SERIAL_DEBUG
       Serial.println("WAKE UP!!!");
       #endif
-    } // проверка будильника
+    }
+    // check the alarm
     if ((now_hour != alarm_hour) or (now_min != alarm_min))
     {
       horn = false;
-    } // отключение будильника через 1 минуту
+    } 
+    // turn off the alarm after 1 minute
     if ((mq2 >= mq2_alarm) and (set_time == 0))
     {
       horn_smoke = true;
@@ -430,11 +437,12 @@ void loop()
       #ifdef SERIAL_DEBUG
       Serial.println("SMOKE!!!");
       #endif
-    } // проверка датчика дыма
+    } 
+    //check smoke sensor
     if ((now_millis - mq2_start_alarm > 10000) and (mq2 <= mq2_alarm))
     {
       horn_smoke = false;
-    } // отключение тревоги
+    } //turn off the alarm
 
     // проверка переполнения millis и сброс раз в 46 суток. максимально возможно значение 4294967295, это около 50 суток.
     if (millis() > 4000000000)
@@ -443,13 +451,12 @@ void loop()
     }; 
     time_millis = now_millis;
   }
-  
-  // сигналы
+  //Signals
   if (set_time == 0)
   { 
-
+    //alarm
     if ((horn) and (now_millis - horn_millis > 250))
-    { // будильник часов
+    { 
       display.clearDisplay();
       noTone(BUZZER_PIN);
       if (note)
@@ -480,8 +487,9 @@ void loop()
       note = !note;
       horn_millis = now_millis;
     }
+    //smoke alarm
     if ((horn_smoke) and (now_millis - horn_millis > 250) and (now_millis > HEATING))
-    { // сигнализация дыма
+    { 
       display.clearDisplay();
       noTone(BUZZER_PIN);
       if (note)
@@ -512,16 +520,14 @@ void loop()
       horn_millis = now_millis;
     }
   }
-
-  // смена экранов по таймингу
+  //Change screens by timing
   if ((now_millis - disp_millis > disp[now_disp]) and (set_time == 0))
   {
     now_disp = (now_disp + 1) % 6;
     display.clearDisplay(); 
     disp_millis = now_millis;
   };
-
-  // обновление экрана
+  //Update the screen
   if (now_millis - lcd_millis > LCD_RENEW)
   { 
     print_lcd();
@@ -539,7 +545,7 @@ void loop()
   display.display();
 }
 //****************************
-// отрисовка экрана
+// Screen rendering
 void print_lcd(void)
 { 
   display.clearDisplay();
@@ -720,11 +726,11 @@ void writeBigString(char *str, uint8_t x, uint8_t y, uint8_t textSize = 2)
   display.setTextSize(1);
 }
 //****************************
-// читаем время и данные с датчиков и записываем значения в переменные для работы
+// Read the time and data from sensors and store the values in variables for operation
 void time_read()
 { 
 
-  mq2 = analogRead(MQ2_A0);
+  mq2 = analogRead(MQ2_ANALOG_PIN);
   
 #ifdef BMP280_SENSOR
   // Read the pressure
@@ -780,7 +786,7 @@ void time_read()
 #ifdef SERIAL_DEBUG
     Serial.print((float)now_temp); Serial.print("C, ");
     Serial.print((float)now_hum); Serial.println("%");
-    Serial.print("Датчик дыма MQ-2: "); Serial.print(mq2);
+    Serial.print("MQ-2: "); Serial.print(mq2);
 #endif
 
   t = rtc.time();
@@ -793,7 +799,7 @@ void time_read()
   now_week_day = t.day;
 }
 //****************************
-// установка уровня яркости подстветки экрана
+// Set the screen backlight brightness level
 void set_lcd_led()
 { 
   bright = map(analogRead(FOTORES), 320, 1024, 0, 5);
@@ -806,7 +812,7 @@ void set_lcd_led()
   // FastLED.setBrightness(bright*51);  // адаптивная подсветка светодиодов
 }
 //****************************
-// установка времени и запись в энергонезависимую память будильника и уровня порога датчика дыма
+// Set the time and write the alarm and smoke sensor threshold levels to non-volatile memory
 void set_time_now()
 { 
   if (time_changed)
